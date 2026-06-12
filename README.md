@@ -10,7 +10,7 @@ Une banque fait des appels pour proposer un dépôt à terme. On veut prédire s
 
 ## Dataset
 
-Bank Marketing – UCI · `bank-full.csv` · 45 211 lignes · 16 features + 1 cible · séparateur `;`
+Bank Marketing – UCI · 45 211 lignes · 16 features + 1 cible
 
 Mix catégoriel / numérique. `"unknown"` apparaît dans `job`, `education`, `contact`, `poutcome` — officiellement une catégorie à part entière selon UCI, mais qu'on peut choisir de traiter comme valeur manquante selon les résultats.
 
@@ -24,7 +24,7 @@ Cible déséquilibrée : 88% `no` / 12% `yes` → l'accuracy seule ment, un mod�
 
 ## Preprocessing
 
-- `unknown` dans `job`, `education`, `contact`, `poutcome` → catégorie officielle selon UCI, mais à tester : la garder telle quelle ou la traiter comme manquant (mode de la colonne)
+- `unknown` dans `job`, `education`, `contact`, `poutcome` → catégorie officielle selon UCI, conservée telle quelle
 - **Encodage :** One-Hot pour les nominales (`job`, `marital`…), Ordinal pour `education` (primary < secondary < tertiary), binaire 0/1 pour `default`, `housing`, `loan`
 - `month` : ordinal ou one-hot ? À décider après exploration
 - **Scaling :** `StandardScaler` ajusté sur le train uniquement — jamais sur le jeu complet avant le split
@@ -69,14 +69,53 @@ Rater un souscripteur (faux négatif) ≠ appeler un non-souscripteur pour rien 
 
 ---
 
-## WebApp
+## Pipeline complet — comment ça s'enchaîne
 
-Streamlit : on saisit le profil d'un client, l'app affiche la proba de souscription et une reco ("appeler" / "passer").
+```
+eda.ipynb
+  └─ charge les données depuis UCI (fetch_ucirepo)
+  └─ explore, nettoie, documente les choix
+  └─ exporte data/bank_processed.csv
+          │
+          ▼
+arene.ipynb
+  └─ charge data/bank_processed.csv
+  └─ encode, split, entraîne 3 algos, compare
+  └─ sauvegarde le champion → champion.joblib
+          │
+          ▼
+app.py (WebApp Streamlit)
+  └─ charge champion.joblib une seule fois au démarrage
+  └─ reçoit le profil d'un client via le formulaire
+  └─ prédit et affiche la proba de souscription
+```
 
-`champion.joblib` contient le modèle et le scaler — les deux vont ensemble, sinon la normalisation en prod ne colle pas avec celle du training.
+---
+
+## Lancer les notebooks
 
 ```bash
-pip install pandas scikit-learn streamlit joblib matplotlib seaborn
+pip install pandas scikit-learn streamlit joblib matplotlib seaborn ucimlrepo jupyter
+```
+
+> Les commandes utilisent `python -m jupyter` pour forcer l'exécution dans le bon environnement virtuel.  
+> Remplacer `TON_VENV` par le nom de ton environnement (ex: `Ipssi_env`).
+
+**Enregistrer le kernel du venv (une seule fois) :**
+
+```bash
+python -m ipykernel install --user --name=TON_VENV
+```
+
+**Tout lancer d'un coup (dans l'ordre) :**
+
+```bash
+python -m jupyter nbconvert --to notebook --execute --inplace --ExecutePreprocessor.kernel_name=TON_VENV notebooks/eda.ipynb && python -m jupyter nbconvert --to notebook --execute --inplace --ExecutePreprocessor.kernel_name=TON_VENV notebooks/arene.ipynb
+```
+
+**WebApp (nécessite `champion.joblib` généré à l'étape précédente) :**
+
+```bash
 streamlit run app.py
 ```
 
@@ -86,9 +125,9 @@ streamlit run app.py
 
 | Rôle | Responsable |
 |------|-------------|
-| Chargement & nettoyage | Meddy |
-| Arène (algos & comparaison) | Mathieu |
-| WebApp Streamlit | Amos |
+| Chargement & nettoyage (`eda.ipynb`) | Meddy |
+| Arène — algos & comparaison (`arene.ipynb`) | Mathieu |
+| WebApp Streamlit (`app.py`) | Amos |
 | README & soutenance | Meddy + Mathieu + Amos |
 
 ---
@@ -106,12 +145,13 @@ streamlit run app.py
 
 ```
 .
-├── data/bank-full.csv
+├── data/
+│   ├── bank_processed.csv                ← généré par eda.ipynb (avec duration)
+│   └── bank_processed_no_duration.csv    ← généré par eda.ipynb (sans duration)
 ├── notebooks/
-│   ├── 01_eda.ipynb
-│   ├── 02_preprocessing.ipynb
-│   └── 03_arene.ipynb
-├── app.py
-├── champion.joblib
+│   ├── eda.ipynb                         ← chargement UCI, nettoyage, export CSV
+│   └── arene.ipynb                       ← modélisation, leaderboard, export champion
+├── app.py                                ← WebApp Streamlit
+├── champion.joblib                       ← généré par arene.ipynb, chargé par app.py
 └── README.md
 ```
